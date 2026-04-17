@@ -1,3 +1,42 @@
 spring:
   application:
     name: hybrid-search
+  elasticsearch:
+    uris: ${ES_URIS:http://localhost:9200}
+    connection-timeout: 3s
+    socket-timeout: 10s
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      embedding:
+        options:
+          model: ${OLLAMA_EMBEDDING_MODEL:dengcao/Qwen3-Embedding-0.6B}
+    vectorstore:
+      qdrant:
+        host: ${QDRANT_HOST:localhost}
+        port: ${QDRANT_PORT:6334}
+        collection-name: ${QDRANT_COLLECTION:documents}
+        use-tls: false
+        initialize-schema: true
+
+search:
+  index-name: documents
+  classifier:
+    # 공격적 KEYWORD 라우팅(임베딩/벡터 비용 최소화)
+    max-keyword-tokens: 5          # 이 이하면 조사 있어도 KEYWORD
+    noun-ratio-threshold: 0.5      # 명사 비율이 이 이상이면 KEYWORD
+    max-particles-for-keyword: 2   # 조사+어미 합계가 이 초과 + 서술어 있을 때만 SENTENCE
+  rrf:
+    k: 60
+  top-k:
+    lexical: 50
+    vector: 50
+  embedding:
+    dimension: 1024
+  fallback:
+    lexical-on-vector-failure: true
+
+logging:
+  level:
+    com.hl.hybridsearch: DEBUG
+    co.elastic.clients: INFO

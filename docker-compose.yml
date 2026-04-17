@@ -1,0 +1,43 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+    container_name: hs-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Nori는 플러그인 설치가 필요하다. 아래 주석의 Dockerfile로 커스텀 이미지 빌드하거나
+    # 컨테이너 시작 후 `docker exec hs-elasticsearch bin/elasticsearch-plugin install --batch analysis-nori` 실행
+    # 플러그인 설치 후 컨테이너 재시작 필요.
+
+  qdrant:
+    image: qdrant/qdrant:v1.17.1
+    container_name: hs-qdrant
+    ports:
+      - "6333:6333"  # HTTP
+      - "6334:6334"  # gRPC
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: hs-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    # 모델은 최초 1회: `docker exec hs-ollama ollama pull dengcao/Qwen3-Embedding-0.6B`
+
+volumes:
+  es-data:
+  qdrant-data:
+  ollama-data:
