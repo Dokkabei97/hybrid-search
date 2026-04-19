@@ -4,10 +4,12 @@ import com.hl.hybridsearch.analyzer.MorphologyAnalyzer
 import com.hl.hybridsearch.analyzer.QueryClassifier
 import com.hl.hybridsearch.analyzer.QueryType
 import com.hl.hybridsearch.config.SearchProperties
+import com.hl.hybridsearch.search.model.SearchHit
 import com.hl.hybridsearch.search.model.SearchRequest
 import com.hl.hybridsearch.search.model.SearchResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -36,7 +38,7 @@ class SearchService(
     }
 
     private fun lexicalOnly(request: SearchRequest, queryType: QueryType): SearchResponse {
-        val hits = lexical.search(request.query, properties.topK.lexical)
+        val hits = lexical.searchMulti(request.query, properties.topK.lexical, request.filters)
         val paged = pager.slice(hits, request.page, request.size)
         return SearchResponse(
             queryType = queryType,
@@ -48,33 +50,33 @@ class SearchService(
     }
 
     private fun hybrid(request: SearchRequest, queryType: QueryType): SearchResponse = runBlocking {
-        val lexDeferred = async(Dispatchers.IO) {
-            runCatching { lexical.search(request.query, properties.topK.lexical) }
+        val topKLex = properties.topK.lexical
+        val topKVec = properties.topK.vector
+
+        val titleDeferred = async(Dispatchers.IO) {
+            runCatching { lexical.searchTitle(request.query, topKLex, request.filters) }
         }
-        val vecDeferred = async(Dispatchers.IO) {
-            runCatching { vector.search(request.query, properties.topK.vector) }
+        val multiDeferred = async(Dispatchers.IO) {
+            runCatching { lexical.searchMulti(request.query, topKLex, request.filters) }
+        }
+        val vectorDeferred = async(Dispatchers.IO) {
+            runCatching { vector.search(request.query, topKVec) }
         }
 
-        val lexResult = lexDeferred.await()
-        val vecResult = vecDeferred.await()
+        val (titleRes, multiRes, vectorRes) = awaitAll(titleDeferred, multiDeferred, vectorDeferred)
 
-        val lexHits = lexResult.getOrElse {
-            log.error("Lexical search failed", it)
-            emptyList()
-        }
-        val vecHits = vecResult.getOrElse {
-            log.warn("Vector search failed, continuing with lexical only", it)
-            emptyList()
-        }
+        val titleHits = titleRes.getOrElse { logAndEmpty("title", it) }
+        val multiHits = multiRes.getOrElse { logAndEmpty("multi", it) }
+        val vectorHits = vectorRes.getOrElse { logAndEmpty("vector", it) }
 
-        val degraded = vecResult.isFailure
-        val degradeReason = vecResult.exceptionOrNull()?.message
+        val degraded = titleRes.isFailure || multiRes.isFailure || vectorRes.isFailure
+        val degradeReason = listOfNotNull(
+            titleRes.exceptionOrNull()?.let { "title:${it.message}" },
+            multiRes.exceptionOrNull()?.let { "multi:${it.message}" },
+            vectorRes.exceptionOrNull()?.let { "vector:${it.message}" },
+        ).joinToString("; ").ifBlank { null }
 
-        val fused = when {
-            degraded && properties.fallback.lexicalOnVectorFailure -> lexHits
-            lexHits.isEmpty() && vecHits.isEmpty() -> emptyList()
-            else -> rrf.fuse(listOf(lexHits, vecHits))
-        }
+        val fused = fuseChannels(titleHits, multiHits, vectorHits)
         val paged = pager.slice(fused, request.page, request.size)
 
         SearchResponse(
@@ -86,5 +88,22 @@ class SearchService(
             degraded = degraded,
             degradeReason = degradeReason,
         )
+    }
+
+    private fun fuseChannels(
+        title: List<SearchHit>,
+        multi: List<SearchHit>,
+        vector: List<SearchHit>,
+    ): List<SearchHit> {
+        val rrfCfg = properties.rrf
+        val lists = listOf(title, multi, vector)
+        if (lists.all { it.isEmpty() }) return emptyList()
+        val weights = listOf(rrfCfg.titleWeight, rrfCfg.bodyWeight, rrfCfg.vectorWeight)
+        return rrf.fuse(lists, weights)
+    }
+
+    private fun logAndEmpty(channel: String, t: Throwable): List<SearchHit> {
+        log.warn("Search channel '{}' failed: {}", channel, t.message)
+        return emptyList()
     }
 }
