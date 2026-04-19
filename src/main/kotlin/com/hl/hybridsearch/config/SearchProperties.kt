@@ -12,7 +12,23 @@ data class SearchProperties(
     val embedding: EmbeddingProperties = EmbeddingProperties(),
     val fallback: FallbackProperties = FallbackProperties(),
     val indexing: IndexingProperties = IndexingProperties(),
+    val vector: VectorProperties = VectorProperties(),
 ) {
+    /**
+     * 벡터 어댑터 튜닝 파라미터. 벤더 특화 값이지만 포트 시그니처엔 안 드러내고
+     * 어댑터가 [com.hl.hybridsearch.search.port.VectorSearchMode] 를 매핑할 때 참조한다.
+     *
+     * Qdrant 매핑:
+     *   FAST     → SearchParams(hnsw_ef = [fastHnswEf])
+     *   ACCURATE → SearchParams(hnsw_ef = [accurateHnswEf])
+     *   EXACT    → SearchParams(exact = true)  — brute-force, 평가 전용
+     */
+    data class VectorProperties(
+        val collectionName: String = "products",
+        val fastHnswEf: Int = 64,
+        val accurateHnswEf: Int = 256,
+    )
+
     data class IndexingProperties(
         val batchSize: Int = 500,
         val concurrency: Int = 4,
