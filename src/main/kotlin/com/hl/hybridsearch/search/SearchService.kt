@@ -4,6 +4,7 @@ import com.hl.hybridsearch.analyzer.MorphologyAnalyzer
 import com.hl.hybridsearch.analyzer.QueryClassifier
 import com.hl.hybridsearch.analyzer.QueryType
 import com.hl.hybridsearch.config.SearchProperties
+import com.hl.hybridsearch.observability.SearchMetrics
 import com.hl.hybridsearch.search.model.SearchHit
 import com.hl.hybridsearch.search.model.SearchRequest
 import com.hl.hybridsearch.search.model.SearchResponse
@@ -24,12 +25,14 @@ class SearchService(
     private val rrf: ReciprocalRankFusion,
     private val pager: Pager,
     private val properties: SearchProperties,
+    private val metrics: SearchMetrics,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun search(request: SearchRequest): SearchResponse {
-        val features = analyzer.analyze(request.query)
+        val features = timedAnalyze { analyzer.analyze(request.query) }
         val queryType = classifier.classify(features)
+        metrics.recordRouting(queryType)
         log.debug("Query '{}' classified as {}", request.query, queryType)
 
         return when (queryType) {
@@ -38,9 +41,24 @@ class SearchService(
         }
     }
 
+    private fun timedAnalyze(block: () -> com.hl.hybridsearch.analyzer.QueryFeatures)
+        : com.hl.hybridsearch.analyzer.QueryFeatures {
+        val start = System.nanoTime()
+        return try {
+            val r = block()
+            metrics.recordAnalyze(SearchMetrics.Status.OK, System.nanoTime() - start)
+            r
+        } catch (e: Throwable) {
+            metrics.recordAnalyze(SearchMetrics.Status.FAILED, System.nanoTime() - start)
+            throw e
+        }
+    }
+
     private fun lexicalOnly(request: SearchRequest, queryType: QueryType): SearchResponse {
         val (hits, status, reason) = runCatching {
-            lexical.searchMulti(request.query, properties.topK.lexical, request.filters)
+            metrics.timeChannel(SearchMetrics.Source.LEXICAL_ONLY) {
+                lexical.searchMulti(request.query, properties.topK.lexical, request.filters)
+            }
         }.fold(
             onSuccess = { Triple(it, SourceHealth.Status.OK, null) },
             onFailure = { t ->
@@ -66,13 +84,25 @@ class SearchService(
         val topKVec = properties.topK.vector
 
         val titleDeferred = async(Dispatchers.IO) {
-            runCatching { lexical.searchTitle(request.query, topKLex, request.filters) }
+            runCatching {
+                metrics.timeChannel(SearchMetrics.Source.LEXICAL_TITLE) {
+                    lexical.searchTitle(request.query, topKLex, request.filters)
+                }
+            }
         }
         val multiDeferred = async(Dispatchers.IO) {
-            runCatching { lexical.searchMulti(request.query, topKLex, request.filters) }
+            runCatching {
+                metrics.timeChannel(SearchMetrics.Source.LEXICAL_MULTI) {
+                    lexical.searchMulti(request.query, topKLex, request.filters)
+                }
+            }
         }
         val vectorDeferred = async(Dispatchers.IO) {
-            runCatching { vector.search(request.query, topKVec) }
+            runCatching {
+                metrics.timeChannel(SearchMetrics.Source.VECTOR) {
+                    vector.search(request.query, topKVec)
+                }
+            }
         }
 
         val (titleRes, multiRes, vectorRes) = awaitAll(titleDeferred, multiDeferred, vectorDeferred)
@@ -81,7 +111,6 @@ class SearchService(
         val multiHits = multiRes.getOrElse { logAndEmpty("multi", it) }
         val vectorHits = vectorRes.getOrElse { logAndEmpty("vector", it) }
 
-        // lexical 채널 상태: title/multi 중 하나라도 성공이면 OK
         val lexicalStatus = if (titleRes.isSuccess || multiRes.isSuccess) {
             SourceHealth.Status.OK
         } else {

@@ -3,6 +3,7 @@ package com.hl.hybridsearch.indexing
 import com.hl.hybridsearch.config.SearchProperties
 import com.hl.hybridsearch.indexing.port.LexicalWriter
 import com.hl.hybridsearch.indexing.port.VectorWriter
+import com.hl.hybridsearch.observability.SearchMetrics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -30,6 +31,7 @@ class IndexingService(
     private val lexical: LexicalWriter,
     private val vector: VectorWriter,
     private val properties: SearchProperties,
+    private val metrics: SearchMetrics? = null,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -108,9 +110,20 @@ class IndexingService(
     private fun processBatch(batch: List<Product>): BulkIndexResult {
         val start = System.currentTimeMillis()
         val lexRes = lexical.upsert(batch)
+        recordBulk(SearchMetrics.Source.ES_BULK, lexRes.isAllSuccess, lexRes.tookMs)
+
         // ES에 성공한 항목만 벡터에 올려 inconsistency 최소화
         val vectorCandidates = batch.filter { it.id in lexRes.succeeded }
         val vecRes = vector.upsert(vectorCandidates)
-        return BulkIndexResult(lexRes, vecRes, System.currentTimeMillis() - start)
+        recordBulk(SearchMetrics.Source.QDRANT_BULK, vecRes.isAllSuccess, vecRes.tookMs)
+
+        val result = BulkIndexResult(lexRes, vecRes, System.currentTimeMillis() - start)
+        metrics?.recordOrphan(result.orphanedInLexical.size)
+        return result
+    }
+
+    private fun recordBulk(source: SearchMetrics.Source, ok: Boolean, tookMs: Long) {
+        val status = if (ok) SearchMetrics.Status.OK else SearchMetrics.Status.FAILED
+        metrics?.recordIndexingChannel(source, status, tookMs)
     }
 }

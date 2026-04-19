@@ -44,6 +44,23 @@ search:
     initial-backoff-ms: 200
     max-backoff-ms: 5000
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        hybrid_search_latency: true
+        hybrid_indexing_latency: true
+        hybrid_analyze_latency: true
+
 logging:
   level:
     com.hl.hybridsearch: DEBUG
