@@ -29,6 +29,9 @@ data class SearchProperties(
 
     data class RrfProperties(
         val k: Int = 60,
+        val titleWeight: Double = 1.0,
+        val bodyWeight: Double = 1.0,
+        val vectorWeight: Double = 1.0,
     )
 
     data class TopKProperties(
