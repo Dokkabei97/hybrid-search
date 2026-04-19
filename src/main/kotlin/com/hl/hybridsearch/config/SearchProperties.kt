@@ -11,7 +11,16 @@ data class SearchProperties(
     val topK: TopKProperties = TopKProperties(),
     val embedding: EmbeddingProperties = EmbeddingProperties(),
     val fallback: FallbackProperties = FallbackProperties(),
+    val indexing: IndexingProperties = IndexingProperties(),
 ) {
+    data class IndexingProperties(
+        val batchSize: Int = 500,
+        val concurrency: Int = 4,
+        val maxRetries: Int = 3,
+        val initialBackoffMs: Long = 200,
+        val maxBackoffMs: Long = 5_000,
+    )
+
     data class ClassifierProperties(
         val maxKeywordTokens: Int = 5,
         val nounRatioThreshold: Double = 0.5,
