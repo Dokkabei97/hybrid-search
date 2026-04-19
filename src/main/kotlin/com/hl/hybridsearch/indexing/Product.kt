@@ -29,16 +29,24 @@ data class Product(
     )
 
     /**
-     * 벡터 임베딩용 텍스트.
-     * 제목 가중은 title-only BM25 채널(Phase 4)에서 처리하므로
-     * 여기서는 `body` 의미에 해당하는 description 을 중심으로 구성한다.
-     * 임베딩 모델 컨텍스트 초과 방지를 위해 길이 상한을 둔다.
+     * 임베딩 "body" 구성 (Lean, docs/embedding-research.md §8.1 A안).
+     *
+     * title 은 이 문자열에 포함하지 않는다 — 문서 템플릿(`title:{title}|text:{text}`)에서
+     * 별도 치환되므로 body 쪽은 title 을 제외한 나머지 시그널만 압축한다.
+     * description 은 앞 400자 pre-truncate 로 mean-pool 희석 방지.
+     *
+     * 템플릿을 쓰지 않는 OpenAI/Gemini/Cohere 계열은 상위에서 `title + body` 로 직접 연결한다.
      */
-    fun embeddingText(maxChars: Int = 2000): String = buildString {
-        append(title)
-        if (brand.isNotBlank()) append("\n브랜드: ").append(brand)
-        if (category.path.isNotBlank()) append("\n카테고리: ").append(category.path)
-        if (tags.isNotEmpty()) append("\n태그: ").append(tags.joinToString(", "))
-        if (description.isNotBlank()) append("\n\n").append(description)
-    }.take(maxChars)
+    fun embeddingBody(maxChars: Int = 1000, descriptionCap: Int = 400): String = buildString {
+        if (brand.isNotBlank()) append(brand)
+        if (category.l2.isNotBlank()) append(' ').append(category.l2)
+        if (category.l3.isNotBlank()) append(' ').append(category.l3)
+        val attrValues = attributes.values.filterNotNull().joinToString(" ")
+        if (attrValues.isNotBlank()) append(' ').append(attrValues)
+        if (tags.isNotEmpty()) append(' ').append(tags.joinToString(" "))
+        if (description.isNotBlank()) {
+            append(". ")
+            append(description.take(descriptionCap))
+        }
+    }.trim().take(maxChars)
 }

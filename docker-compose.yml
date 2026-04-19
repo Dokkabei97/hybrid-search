@@ -35,7 +35,8 @@ services:
       - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
-    # 모델은 최초 1회: `docker exec hs-ollama ollama pull dengcao/Qwen3-Embedding-0.6B`
+    # 모델은 최초 1회: `docker exec hs-ollama ollama pull embeddinggemma`
+    # (300M 파라미터, 768d 기본, MRL 512/256/128 축소 지원, context 2048 tokens)
 
 volumes:
   es-data:
