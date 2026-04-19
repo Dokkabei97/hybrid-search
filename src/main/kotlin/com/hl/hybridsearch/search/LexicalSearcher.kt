@@ -22,8 +22,10 @@ class LexicalSearcher(
             .query { q ->
                 q.multiMatch { mm ->
                     mm.query(query)
-                        .fields("title^2", "body")
+                        .fields("title^3", "brand.text^2", "description")
                         .type(TextQueryType.BestFields)
+                        .tieBreaker(0.3)
+                        .minimumShouldMatch("2<75%")
                 }
             }
             .build()

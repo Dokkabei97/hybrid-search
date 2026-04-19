@@ -16,7 +16,6 @@ class IndexTemplateInitializer(
 ) : ApplicationRunner {
 
     private val log = LoggerFactory.getLogger(javaClass)
-    private val templateName = "documents-template"
     private val resourcePath = "classpath:elasticsearch/index-template.json"
 
     override fun run(args: ApplicationArguments) {
@@ -25,15 +24,16 @@ class IndexTemplateInitializer(
     }
 
     private fun registerTemplate() {
+        val name = properties.indexTemplateName
         try {
             resourceLoader.getResource(resourcePath).inputStream.use { stream ->
                 esClient.indices().putIndexTemplate { r ->
-                    r.name(templateName).withJson(stream)
+                    r.name(name).withJson(stream)
                 }
             }
-            log.info("Index template '{}' registered", templateName)
+            log.info("Index template '{}' registered", name)
         } catch (e: Exception) {
-            log.warn("Failed to register index template '{}'", templateName, e)
+            log.warn("Failed to register index template '{}'", name, e)
         }
     }
 
