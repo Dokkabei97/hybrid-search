@@ -42,8 +42,16 @@ docker-compose up 이후:
 ```bash
 docker exec hs-elasticsearch bin/elasticsearch-plugin install --batch analysis-nori
 docker restart hs-elasticsearch
-docker exec hs-ollama ollama pull dengcao/Qwen3-Embedding-0.6B
+docker exec hs-ollama ollama pull embeddinggemma   # Google EmbeddingGemma-300m, 768d, context 2048
 ```
+
+### 임베딩 모델 교체 시 체크리스트
+1. `spring.ai.ollama.embedding.options.model` 환경변수/설정 교체
+2. `search.embedding.dimension` 을 새 모델 출력 차원으로 수정 (Gemma 768, Qwen3 1024, OpenAI v3-large 3072 등)
+3. `search.embedding.query-instruction` / `document-instruction` 을 모델 권장 포맷으로 (또는 빈 문자열로 off)
+4. Qdrant 컬렉션 재생성 — 차원이 바뀌면 기존 벡터와 호환 불가. `products` 컬렉션 삭제 후 앱 재기동 → `initialize-schema=true` 가 새 차원으로 재생성
+5. 합성 카탈로그 재시딩: `./gradlew bootRun --args='--spring.profiles.active=seed'`
+자세한 prefix 매트릭스는 `docs/embedding-research.md` §10 참고.
 
 ## Architecture — 큰 그림
 

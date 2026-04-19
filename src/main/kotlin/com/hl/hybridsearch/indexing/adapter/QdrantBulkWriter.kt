@@ -73,8 +73,27 @@ class QdrantBulkWriter(
         if (p.tags.isNotEmpty()) payload["tags"] = p.tags
         return AiDocument.builder()
             .id(p.id)
-            .text(p.embeddingText(properties.embedding.maxChars))
+            .text(buildEmbeddingText(p))
             .metadata(payload)
             .build()
+    }
+
+    /**
+     * 문서 임베딩 텍스트 조립.
+     * - `search.embedding.document-instruction` 이 비어 있으면 "title + body" 를 단순 연결
+     *   (OpenAI v3 / Gemini / Cohere / Voyage 처럼 API 파라미터로 구분하는 모델).
+     * - 템플릿이 있으면 `{title}` 과 `{text}` 를 치환 (EmbeddingGemma, Nomic 등).
+     *   title 이 공백이면 Gemma 공식 지침대로 리터럴 "none" 을 사용.
+     */
+    private fun buildEmbeddingText(p: Product): String {
+        val body = p.embeddingBody(properties.embedding.maxChars)
+        val template = properties.embedding.documentInstruction
+        if (template.isBlank()) {
+            return if (p.title.isNotBlank()) "${p.title}\n$body" else body
+        }
+        val title = p.title.ifBlank { "none" }
+        return template
+            .replace("{title}", title)
+            .replace("{text}", body)
     }
 }
