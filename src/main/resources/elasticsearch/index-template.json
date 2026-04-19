@@ -1,0 +1,47 @@
+{
+  "index_patterns": ["documents*"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "analysis": {
+        "analyzer": {
+          "nori_mixed": {
+            "type": "custom",
+            "tokenizer": "nori_mixed_tokenizer",
+            "filter": ["nori_part_of_speech", "lowercase", "nori_readingform"]
+          },
+          "nori_raw": {
+            "type": "custom",
+            "tokenizer": "nori_mixed_tokenizer"
+          }
+        },
+        "tokenizer": {
+          "nori_mixed_tokenizer": {
+            "type": "nori_tokenizer",
+            "decompound_mode": "mixed",
+            "discard_punctuation": "true"
+          }
+        }
+      },
+      "similarity": {
+        "default": { "type": "BM25" }
+      }
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "id":    { "type": "keyword" },
+        "title": {
+          "type": "text",
+          "analyzer": "nori_mixed",
+          "fields": { "raw": { "type": "keyword" } }
+        },
+        "body":  { "type": "text", "analyzer": "nori_mixed" },
+        "tags":  { "type": "keyword" },
+        "createdAt": { "type": "date" }
+      }
+    }
+  }
+}

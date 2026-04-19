@@ -29,10 +29,20 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-starter-model-ollama")
     implementation("org.springframework.ai:spring-ai-starter-vector-store-qdrant")
     implementation("tools.jackson.module:jackson-module-kotlin")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.9.0")
+
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
+
+    testImplementation(platform("org.testcontainers:testcontainers-bom:1.20.4"))
     testImplementation("org.springframework.boot:spring-boot-starter-elasticsearch-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testImplementation("org.testcontainers:elasticsearch")
+    testImplementation("org.testcontainers:qdrant")
+    testImplementation("org.testcontainers:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
