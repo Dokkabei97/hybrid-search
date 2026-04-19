@@ -37,6 +37,12 @@ search:
     max-chars: 2000
   fallback:
     lexical-on-vector-failure: true
+  indexing:
+    batch-size: 500
+    concurrency: 4
+    max-retries: 3
+    initial-backoff-ms: 200
+    max-backoff-ms: 5000
 
 logging:
   level:

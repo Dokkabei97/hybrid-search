@@ -1,5 +1,6 @@
 package com.hl.hybridsearch.api
 
+import com.hl.hybridsearch.indexing.BulkIndexResult
 import com.hl.hybridsearch.indexing.IndexingService
 import com.hl.hybridsearch.indexing.Product
 import org.springframework.http.ResponseEntity
@@ -16,14 +17,21 @@ class IndexingController(
     private val indexingService: IndexingService,
 ) {
     @PostMapping
-    fun index(@RequestBody product: Product): ResponseEntity<Map<String, String>> {
-        indexingService.index(product)
-        return ResponseEntity.ok(mapOf("id" to product.id, "status" to "indexed"))
+    fun index(@RequestBody product: Product): ResponseEntity<BulkIndexResult> {
+        val result = indexingService.index(product)
+        return ResponseEntity.ok(result)
+    }
+
+    @PostMapping("/bulk")
+    fun bulkIndex(@RequestBody products: List<Product>): ResponseEntity<BulkIndexResult> {
+        val result = indexingService.bulkIndex(products)
+        val status = if (result.isAllSuccess) 200 else 207 // Multi-Status for partial success
+        return ResponseEntity.status(status).body(result)
     }
 
     @DeleteMapping("/{id}")
     fun delete(@PathVariable id: String): ResponseEntity<Void> {
-        indexingService.delete(id)
+        indexingService.bulkDelete(listOf(id))
         return ResponseEntity.noContent().build()
     }
 }
