@@ -1,27 +1,55 @@
 {
-  "index_patterns": ["documents*"],
+  "index_patterns": ["products*"],
   "priority": 200,
   "template": {
     "settings": {
       "number_of_shards": 1,
-      "number_of_replicas": 0,
+      "number_of_replicas": 1,
+      "refresh_interval": "1s",
       "analysis": {
-        "analyzer": {
-          "nori_mixed": {
-            "type": "custom",
-            "tokenizer": "nori_mixed_tokenizer",
-            "filter": ["nori_part_of_speech", "lowercase", "nori_readingform"]
-          },
-          "nori_raw": {
-            "type": "custom",
-            "tokenizer": "nori_mixed_tokenizer"
+        "filter": {
+          "nori_pos_filter": {
+            "type": "nori_part_of_speech",
+            "stoptags": [
+              "E","IC","J","MAG","MAJ","MM",
+              "SP","SSC","SSO","SC","SE",
+              "XPN","XSA","XSN","XSV",
+              "UNA","NA","VSV","VCP","VCN"
+            ]
           }
         },
         "tokenizer": {
-          "nori_mixed_tokenizer": {
+          "nori_tok_mixed": {
             "type": "nori_tokenizer",
             "decompound_mode": "mixed",
             "discard_punctuation": "true"
+          },
+          "nori_tok_discard": {
+            "type": "nori_tokenizer",
+            "decompound_mode": "discard",
+            "discard_punctuation": "true"
+          }
+        },
+        "analyzer": {
+          "nori_index": {
+            "type": "custom",
+            "tokenizer": "nori_tok_mixed",
+            "filter": ["nori_pos_filter", "lowercase", "nori_readingform"]
+          },
+          "nori_search": {
+            "type": "custom",
+            "tokenizer": "nori_tok_discard",
+            "filter": ["nori_pos_filter", "lowercase", "nori_readingform"]
+          },
+          "nori_classify": {
+            "type": "custom",
+            "tokenizer": "nori_tok_mixed"
+          }
+        },
+        "normalizer": {
+          "keyword_lower": {
+            "type": "custom",
+            "filter": ["lowercase"]
           }
         }
       },
@@ -30,17 +58,44 @@
       }
     },
     "mappings": {
-      "dynamic": false,
+      "dynamic": "false",
       "properties": {
-        "id":    { "type": "keyword" },
+        "id": { "type": "keyword" },
         "title": {
           "type": "text",
-          "analyzer": "nori_mixed",
-          "fields": { "raw": { "type": "keyword" } }
+          "analyzer": "nori_index",
+          "search_analyzer": "nori_search",
+          "fields": {
+            "keyword": { "type": "keyword", "ignore_above": 512, "normalizer": "keyword_lower" }
+          }
         },
-        "body":  { "type": "text", "analyzer": "nori_mixed" },
-        "tags":  { "type": "keyword" },
-        "createdAt": { "type": "date" }
+        "brand": {
+          "type": "keyword",
+          "normalizer": "keyword_lower",
+          "fields": {
+            "text": { "type": "text", "analyzer": "nori_index", "search_analyzer": "nori_search" }
+          }
+        },
+        "category": {
+          "properties": {
+            "path": { "type": "keyword" },
+            "l1": { "type": "keyword" },
+            "l2": { "type": "keyword" },
+            "l3": { "type": "keyword" }
+          }
+        },
+        "description": {
+          "type": "text",
+          "analyzer": "nori_index",
+          "search_analyzer": "nori_search"
+        },
+        "tags": { "type": "keyword", "normalizer": "keyword_lower" },
+        "price": { "type": "scaled_float", "scaling_factor": 100 },
+        "rating": { "type": "half_float" },
+        "reviewCount": { "type": "long" },
+        "attributes": { "type": "flattened" },
+        "createdAt": { "type": "date" },
+        "updatedAt": { "type": "date" }
       }
     }
   }

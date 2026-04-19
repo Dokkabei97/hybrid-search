@@ -4,7 +4,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 
 @ConfigurationProperties(prefix = "search")
 data class SearchProperties(
-    val indexName: String = "documents",
+    val indexName: String = "products",
+    val indexTemplateName: String = "products-template",
     val classifier: ClassifierProperties = ClassifierProperties(),
     val rrf: RrfProperties = RrfProperties(),
     val topK: TopKProperties = TopKProperties(),
@@ -28,6 +29,7 @@ data class SearchProperties(
 
     data class EmbeddingProperties(
         val dimension: Int = 1024,
+        val maxChars: Int = 2000,
     )
 
     data class FallbackProperties(

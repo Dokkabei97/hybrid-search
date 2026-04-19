@@ -30,7 +30,7 @@ class NoriAnalyzer(
 ) : MorphologyAnalyzer {
 
     private val log = LoggerFactory.getLogger(javaClass)
-    private val analyzerName = "nori_raw"
+    private val analyzerName = "nori_classify"
 
     override fun analyze(text: String): QueryFeatures {
         if (text.isBlank()) return QueryFeatures(raw = text, tokens = emptyList())

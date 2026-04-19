@@ -15,12 +15,13 @@ spring:
       qdrant:
         host: ${QDRANT_HOST:localhost}
         port: ${QDRANT_PORT:6334}
-        collection-name: ${QDRANT_COLLECTION:documents}
+        collection-name: ${QDRANT_COLLECTION:products}
         use-tls: false
         initialize-schema: true
 
 search:
-  index-name: documents
+  index-name: products
+  index-template-name: products-template
   classifier:
     # 공격적 KEYWORD 라우팅(임베딩/벡터 비용 최소화)
     max-keyword-tokens: 5          # 이 이하면 조사 있어도 KEYWORD
@@ -33,6 +34,7 @@ search:
     vector: 50
   embedding:
     dimension: 1024
+    max-chars: 2000
   fallback:
     lexical-on-vector-failure: true
 
