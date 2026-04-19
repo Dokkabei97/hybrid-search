@@ -7,6 +7,7 @@ import com.hl.hybridsearch.config.SearchProperties
 import com.hl.hybridsearch.search.model.SearchHit
 import com.hl.hybridsearch.search.model.SearchRequest
 import com.hl.hybridsearch.search.model.SearchResponse
+import com.hl.hybridsearch.search.model.SourceHealth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -38,7 +39,16 @@ class SearchService(
     }
 
     private fun lexicalOnly(request: SearchRequest, queryType: QueryType): SearchResponse {
-        val hits = lexical.searchMulti(request.query, properties.topK.lexical, request.filters)
+        val (hits, status, reason) = runCatching {
+            lexical.searchMulti(request.query, properties.topK.lexical, request.filters)
+        }.fold(
+            onSuccess = { Triple(it, SourceHealth.Status.OK, null) },
+            onFailure = { t ->
+                log.error("Lexical-only search failed", t)
+                Triple(emptyList<SearchHit>(), SourceHealth.Status.FAILED, t.message)
+            },
+        )
+
         val paged = pager.slice(hits, request.page, request.size)
         return SearchResponse(
             queryType = queryType,
@@ -46,6 +56,8 @@ class SearchService(
             page = request.page,
             size = request.size,
             hits = paged,
+            sources = SourceHealth(lexical = status, vector = SourceHealth.Status.DISABLED),
+            degradeReason = reason,
         )
     }
 
@@ -69,7 +81,14 @@ class SearchService(
         val multiHits = multiRes.getOrElse { logAndEmpty("multi", it) }
         val vectorHits = vectorRes.getOrElse { logAndEmpty("vector", it) }
 
-        val degraded = titleRes.isFailure || multiRes.isFailure || vectorRes.isFailure
+        // lexical 채널 상태: title/multi 중 하나라도 성공이면 OK
+        val lexicalStatus = if (titleRes.isSuccess || multiRes.isSuccess) {
+            SourceHealth.Status.OK
+        } else {
+            SourceHealth.Status.FAILED
+        }
+        val vectorStatus = if (vectorRes.isSuccess) SourceHealth.Status.OK else SourceHealth.Status.FAILED
+
         val degradeReason = listOfNotNull(
             titleRes.exceptionOrNull()?.let { "title:${it.message}" },
             multiRes.exceptionOrNull()?.let { "multi:${it.message}" },
@@ -85,7 +104,7 @@ class SearchService(
             page = request.page,
             size = request.size,
             hits = paged,
-            degraded = degraded,
+            sources = SourceHealth(lexical = lexicalStatus, vector = vectorStatus),
             degradeReason = degradeReason,
         )
     }

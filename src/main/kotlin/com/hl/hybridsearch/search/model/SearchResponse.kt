@@ -8,6 +8,10 @@ data class SearchResponse(
     val page: Int,
     val size: Int,
     val hits: List<SearchHit>,
-    val degraded: Boolean = false,
+    val sources: SourceHealth,
     val degradeReason: String? = null,
-)
+) {
+    val degraded: Boolean
+        get() = sources.lexical == SourceHealth.Status.FAILED ||
+            sources.vector == SourceHealth.Status.FAILED
+}
