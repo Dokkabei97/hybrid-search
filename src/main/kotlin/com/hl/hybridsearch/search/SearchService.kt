@@ -27,10 +27,12 @@ class SearchService(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun search(request: SearchRequest): SearchResponse {
-        val features = analyzer.analyze(request.query)
-        val queryType = classifier.classify(features)
-        log.debug("Query '{}' classified as {}", request.query, queryType)
+    fun search(request: SearchRequest, forceType: QueryType? = null): SearchResponse {
+        val queryType = forceType ?: classifier.classify(analyzer.analyze(request.query))
+        log.debug(
+            "Query '{}' routed as {} (forced={})",
+            request.query, queryType, forceType != null,
+        )
 
         return when (queryType) {
             QueryType.KEYWORD -> lexicalOnly(request, queryType)
