@@ -74,7 +74,7 @@ class SearchService(
             runCatching { lexical.searchMulti(request.query, topKLex, request.filters) }
         }
         val vectorDeferred = async(Dispatchers.IO) {
-            runCatching { vector.search(request.query, topKVec) }
+            runCatching { vector.search(request.query, topKVec, request.filters) }
         }
 
         val (titleRes, multiRes, vectorRes) = awaitAll(titleDeferred, multiDeferred, vectorDeferred)

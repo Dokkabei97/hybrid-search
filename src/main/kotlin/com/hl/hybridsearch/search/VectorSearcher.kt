@@ -1,45 +1,38 @@
 package com.hl.hybridsearch.search
 
-import com.hl.hybridsearch.config.SearchProperties
+import com.hl.hybridsearch.search.model.SearchFilters
 import com.hl.hybridsearch.search.model.SearchHit
+import com.hl.hybridsearch.search.port.VectorFilter
+import com.hl.hybridsearch.search.port.VectorQueryPort
+import com.hl.hybridsearch.search.port.VectorSearchMode
 import org.slf4j.LoggerFactory
-import org.springframework.ai.vectorstore.SearchRequest as AiSearchRequest
-import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.stereotype.Component
 
+/**
+ * 벡터 검색 채널 파사드. 아래 세 책임을 얇게 결합한다:
+ *   1) 쿼리 텍스트 → 임베딩 벡터 ([QueryEmbedder])
+ *   2) 도메인 [SearchFilters] → 벤더 중립 [VectorFilter] AST
+ *   3) [VectorQueryPort] 호출 (벤더 어댑터 선택은 DI)
+ *
+ * 이 클래스는 Spring AI `VectorStore` 에 더 이상 의존하지 않는다. Qdrant → Milvus/Weaviate 교체 시
+ * [VectorQueryPort] 구현체만 바꾸면 된다.
+ */
 @Component
 class VectorSearcher(
-    private val vectorStore: VectorStore,
-    private val properties: SearchProperties,
+    private val embedder: QueryEmbedder,
+    private val port: VectorQueryPort,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun search(query: String, topK: Int): List<SearchHit> {
-        val wrapped = wrapQuery(query)
-        val request = AiSearchRequest.builder()
-            .query(wrapped)
-            .topK(topK)
-            .build()
-
-        val docs = vectorStore.similaritySearch(request) ?: emptyList()
-
-        return docs.map { doc ->
-            SearchHit(
-                docId = doc.id,
-                score = doc.score ?: 0.0,
-                source = SearchHit.Source.VECTOR,
-                payload = doc.metadata,
-            )
-        }.also { log.debug("Vector search returned {} hits", it.size) }
-    }
-
-    /**
-     * 모델별 query instruction wrapping. 빈 문자열이면 off.
-     * EmbeddingGemma, Qwen3, Nomic 처럼 텍스트에 prefix 를 요구하는 모델만 설정값을 채우고,
-     * OpenAI v3 / Gemini / Cohere / Voyage 는 `queryInstruction=""` 로 두어 raw query 가 그대로 전달되게 한다.
-     */
-    private fun wrapQuery(query: String): String {
-        val template = properties.embedding.queryInstruction
-        return if (template.isBlank()) query else template.replace("{query}", query)
+    fun search(
+        query: String,
+        topK: Int,
+        filters: SearchFilters = SearchFilters.EMPTY,
+        mode: VectorSearchMode = VectorSearchMode.FAST,
+    ): List<SearchHit> {
+        val vector = embedder.embed(query)
+        val filter = VectorFilter.from(filters)
+        return port.search(vector, topK, filter, mode)
+            .also { log.debug("Vector channel returned {} hits (filter={})", it.size, filter != null) }
     }
 }
