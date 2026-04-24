@@ -77,10 +77,11 @@ docker exec hs-ollama ollama pull embeddinggemma   # Google EmbeddingGemma-300m,
 
 ### Evaluation loop (eval 프로파일)
 - `SyntheticCatalogGenerator` (`catalog/`)와 `SyntheticGoldSetBuilder` (`eval/`)는 **동일 seed**를 공유 → corpus와 gold queries가 비트 단위 재현 가능
-- `EvaluationRunner.run(gold, strategy, forceType)` — `SearchService.search(request, forceType)`로 분류기를 우회해 A/B 전략 비교:
-  - `classifier` (prod 경로)
+- `EvaluationRunner.run(gold, strategy, forceType)` — `SearchService.evaluate(request, forceType)`(internal) 로 분류기를 우회해 A/B 전략 비교:
+  - `classifier` (prod 경로, `forceType = null`)
   - `always-sentence` (`forceType = SENTENCE`)
   - `always-lexical` (`forceType = KEYWORD`)
+- `SearchController` 는 `SearchService.search(request)` 만 호출 — eval 전용 `forceType` 파라미터는 `internal fun evaluate` 로 격리되어 prod API 에 노출되지 않는다.
 - `EvaluationReport.splitByExpectedType()` — KEYWORD/SENTENCE 세그먼트별 메트릭
 
 ### Profile-gated runners
@@ -109,12 +110,17 @@ docker exec hs-ollama ollama pull embeddinggemma   # Google EmbeddingGemma-300m,
 - **typed `EsProductSource` DTO** — 현재 `SearchHit.payload: Map<String, Any?>` 유지.
 - **Qdrant HNSW/quantization 튜닝** — 기본값 (Spring AI `initialize-schema=true`).
 
-## Known boundary issues (수정 전 인지 필요)
+## Canonical form & single-source-of-truth 정책
 
-리뷰에서 드러난 "지금 뭘 깨뜨리진 않지만 유지보수 비용을 쌓는" 2건:
+아래 세 가지는 함께 움직인다 — 하나만 건드리면 silent mismatch 발생:
 
-1. **`SearchService.search(request, forceType)` public 노출** — 평가 전용 파라미터가 프로덕션 시그니처에 섞임. `EvaluationSearchAdapter`로 감싸거나 `internal fun`으로 격리하는 것이 정리 방향.
-2. **`Product` → ES/Qdrant 변환 이중화** — `ElasticsearchBulkWriter.toEsDocument` + `QdrantBulkWriter.toAiDocument`가 각자 스키마 해석. `Product`에 `toEsFields()` / `toVectorMetadata()`를 두어 단일 출처로 옮기는 것이 정리 방향.
+1. **`SearchFilters.of(...)`** (`search/model/SearchFilters.kt`) — primary constructor 는 private.
+   `brand` 는 `trim().lowercase()`, `categoryL1` 은 `trim()` (케이스 보존). `@ConsistentCopyVisibility` 로 `copy()` 도 막혀있어 factory 단일 관문이 진짜로 강제된다.
+2. **`Product.toEsFields(now)` / `toVectorPayload()`** (`indexing/Product.kt`) — 저장 표현을 도메인이 소유.
+   `toVectorPayload` 의 `brand` 는 lowercase (ES `keyword_lower` normalizer 와 동일 결과). 어댑터는 이 두 메서드를 호출만 한다 — 스키마 해석을 어댑터 쪽에 흩지 말 것.
+3. **ES index-template** (`src/main/resources/elasticsearch/index-template.json`) — `brand` 는 `keyword_lower` normalizer, `category.*` 는 normalizer 없음. 새 필드 추가 시 (1)(2)(3) 을 한 묶음으로 본다.
+
+계약 테스트: `ProductSchemaTest` (키셋 고정), `SearchFiltersTest` (정규화 규칙 고정), `VectorFilterTest` (AST 매핑 고정).
 
 ## Git / PR workflow
 
