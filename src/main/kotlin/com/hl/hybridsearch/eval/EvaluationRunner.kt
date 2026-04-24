@@ -31,7 +31,7 @@ class EvaluationRunner(
             strategyName, gold.queries.size, forceType)
 
         val results = gold.queries.map { gq ->
-            val response = searchService.search(
+            val response = searchService.evaluate(
                 SearchRequest(query = gq.query, page = 0, size = topK),
                 forceType = forceType,
             )
