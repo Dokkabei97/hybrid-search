@@ -61,22 +61,11 @@ class QdrantBulkWriter(
         }
     }
 
-    private fun toAiDocument(p: Product): AiDocument {
-        val payload = mutableMapOf<String, Any>(
-            "doc_id" to p.id,
-            "title" to p.title,
-            "brand" to p.brand,
-            "category_path" to p.category.path,
-            "category_l1" to p.category.l1,
-            "price" to p.price,
-        )
-        if (p.tags.isNotEmpty()) payload["tags"] = p.tags
-        return AiDocument.builder()
-            .id(p.id)
-            .text(buildEmbeddingText(p))
-            .metadata(payload)
-            .build()
-    }
+    private fun toAiDocument(p: Product): AiDocument = AiDocument.builder()
+        .id(p.id)
+        .text(buildEmbeddingText(p))
+        .metadata(p.toVectorPayload())
+        .build()
 
     /**
      * 문서 임베딩 텍스트 조립.
