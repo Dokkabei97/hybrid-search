@@ -103,7 +103,8 @@ class LexicalSearcher(
             b.filter { f -> f.term { t -> t.field("category.l1").value(l1) } }
         }
         filters.brand?.let { brand ->
-            b.filter { f -> f.term { t -> t.field("brand").value(brand.lowercase()) } }
+            // SearchFilters.of 에서 이미 lowercase canonical form 으로 정규화됨
+            b.filter { f -> f.term { t -> t.field("brand").value(brand) } }
         }
         if (filters.priceMin != null || filters.priceMax != null) {
             b.filter { f ->
