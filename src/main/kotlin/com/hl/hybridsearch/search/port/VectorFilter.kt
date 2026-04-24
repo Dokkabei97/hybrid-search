@@ -32,10 +32,10 @@ sealed interface VectorFilter {
         /**
          * 도메인 [SearchFilters] → 벡터 필터 AST.
          *
-         * payload 키 네이밍은 [com.hl.hybridsearch.indexing.adapter.QdrantBulkWriter.toAiDocument]
-         * 와 일치시킨다. 현재 Qdrant 는 원본 케이스로 값을 저장하므로 brand 를 lowercasing 하지 않는다
-         * (ES adapter 는 `keyword_lower` normalizer 때문에 반대로 동작) —
-         * 두 스토어 간 payload 케이스 정책 통일은 별도 작업.
+         * payload 키 네이밍은 [com.hl.hybridsearch.indexing.Product.toVectorPayload] 의 저장 키와
+         * 일치시킨다 (`brand`, `category_l1`, `price`). brand 는 [SearchFilters.of] 에서 이미
+         * lowercase canonical form 으로 정규화된 상태로 들어온다 — ES `keyword_lower` normalizer 와
+         * 동일한 표현으로 통일되어 있다.
          */
         fun from(filters: SearchFilters): VectorFilter? {
             if (!filters.hasAny) return null

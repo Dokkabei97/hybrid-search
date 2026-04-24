@@ -22,6 +22,7 @@ class ElasticsearchBulkWriter(
     override fun upsert(products: List<Product>): BulkWriteResult {
         if (products.isEmpty()) return BulkWriteResult.empty()
         val start = System.currentTimeMillis()
+        val now = Instant.now()
 
         val request = BulkRequest.Builder().apply {
             products.forEach { p ->
@@ -29,7 +30,7 @@ class ElasticsearchBulkWriter(
                     op.index { idx ->
                         idx.index(properties.indexName)
                             .id(p.id)
-                            .document(toEsDocument(p))
+                            .document(p.toEsFields(now))
                     }
                 }
             }
@@ -85,26 +86,4 @@ class ElasticsearchBulkWriter(
         return BulkDeleteResult(succeeded, failed, took)
     }
 
-    private fun toEsDocument(p: Product): Map<String, Any?> {
-        val now = Instant.now().toString()
-        return mapOf(
-            "id" to p.id,
-            "title" to p.title,
-            "brand" to p.brand,
-            "category" to mapOf(
-                "path" to p.category.path,
-                "l1" to p.category.l1,
-                "l2" to p.category.l2,
-                "l3" to p.category.l3,
-            ),
-            "description" to p.description,
-            "tags" to p.tags,
-            "price" to p.price,
-            "rating" to p.rating,
-            "reviewCount" to p.reviewCount,
-            "attributes" to p.attributes,
-            "createdAt" to now,
-            "updatedAt" to now,
-        )
-    }
 }

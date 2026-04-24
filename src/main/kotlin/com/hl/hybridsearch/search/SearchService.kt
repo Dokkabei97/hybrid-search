@@ -27,7 +27,25 @@ class SearchService(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun search(request: SearchRequest, forceType: QueryType? = null): SearchResponse {
+    /**
+     * 프로덕션 검색 진입점. 분류기가 경로(KEYWORD/SENTENCE)를 결정한다.
+     *
+     * 평가용 경로 강제는 [evaluate] 를 사용하라 — eval 전용 파라미터가 prod 시그니처에
+     * 새지 않도록 의도적으로 분리했다.
+     */
+    fun search(request: SearchRequest): SearchResponse = route(request, forceType = null)
+
+    /**
+     * 평가 전용 검색 진입점 (module-internal).
+     *
+     * @param forceType `null` 이면 분류기 사용 (= prod 경로). KEYWORD/SENTENCE 지정 시 분기 강제.
+     * A/B 비교 (classifier vs always-keyword vs always-sentence) 목적으로만 사용한다.
+     * 프로덕션 코드에서 호출하지 말 것 — `internal` 가시성이 이를 컴파일 수준에서 차단한다.
+     */
+    internal fun evaluate(request: SearchRequest, forceType: QueryType? = null): SearchResponse =
+        route(request, forceType)
+
+    private fun route(request: SearchRequest, forceType: QueryType?): SearchResponse {
         val queryType = forceType ?: classifier.classify(analyzer.analyze(request.query))
         log.debug(
             "Query '{}' routed as {} (forced={})",

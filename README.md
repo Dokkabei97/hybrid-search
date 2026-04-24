@@ -180,11 +180,13 @@ A/B 라우팅 전략 비교 (classifier vs always-sentence vs always-lexical):
 - **Qdrant HNSW/quantization collection-level 튜닝** — Spring AI `initialize-schema=true` 기본값 사용
 - **Qdrant payload index 생성** — 대량 데이터 필터 성능 필요 시 추가
 
-## Known boundary issues
+## Single source of truth 정책
 
-1. **`SearchService.search(request, forceType)` public 노출** — 평가 전용 파라미터가 프로덕션 시그니처에 섞임
-2. **`Product` → ES/Qdrant 변환 이중화** — `ElasticsearchBulkWriter.toEsDocument` + `QdrantBulkWriter.toAiDocument` 가 각자 스키마 해석. `Product.toEsFields()` / `toVectorMetadata()` 로 단일 출처 이전 예정
-3. **Brand 케이스 비대칭** — ES 는 `keyword_lower` normalizer 로 소문자, Qdrant 는 원본 케이스 저장. 필터링 시 두 스토어 결과가 비대칭
+필터 정규화와 저장 표현은 도메인에 묶여 있다. 자세한 내용은 [`CLAUDE.md`](CLAUDE.md) "Canonical form" 섹션 참조.
+
+- `SearchFilters.of(...)` — primary constructor private, factory 단일 관문 (`@ConsistentCopyVisibility`). brand 는 lowercase canonical form
+- `Product.toEsFields(now) / toVectorPayload()` — 저장 표현은 도메인이 소유, 어댑터는 호출만
+- `SearchService.search(req)` 와 `internal fun evaluate(req, forceType)` 분리 — eval 전용 파라미터는 prod API 에 새지 않음
 
 ## Git workflow
 

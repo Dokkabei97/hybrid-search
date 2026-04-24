@@ -73,6 +73,23 @@ data class SearchProperties(
          * Nomic v1.5:    "search_document: {text}"
          */
         val documentInstruction: String = "",
+        val queryCache: QueryCacheProperties = QueryCacheProperties(),
+    )
+
+    /**
+     * 쿼리 임베딩 캐시 설정 (Caffeine 기반, in-process).
+     *
+     * 이커머스 쿼리는 소수 핫 쿼리가 트래픽의 대부분 → 임베딩 호출 p95 급감 기대.
+     * 메모리 비용: FloatArray(dimension) × maxSize. Gemma 768d × 10k ≈ 30KB × 10k = 30MB
+     * 만 아니라, 실제로는 FloatArray 4 bytes × 768 × 10k ≈ 30MB 수준 (float 배열 오버헤드 무시).
+     *
+     * 주의: FloatArray 는 가변 배열이지만 이 프로젝트의 소비 경로 (VectorSearcher → Qdrant adapter)
+     * 는 `.toList()` 로 복사 후 gRPC 에 전달하므로 캐시 공유 인스턴스 mutation 없음.
+     */
+    data class QueryCacheProperties(
+        val enabled: Boolean = true,
+        val maxSize: Long = 10_000,
+        val ttlMinutes: Long = 60,
     )
 
     data class FallbackProperties(

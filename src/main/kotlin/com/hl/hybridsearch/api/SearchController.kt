@@ -24,7 +24,7 @@ class SearchController(
         @RequestParam(required = false) priceMin: Long?,
         @RequestParam(required = false) priceMax: Long?,
     ): SearchResponse {
-        val filters = SearchFilters(
+        val filters = SearchFilters.of(
             categoryL1 = categoryL1,
             brand = brand,
             priceMin = priceMin,
