@@ -29,6 +29,7 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-starter-model-ollama")
     implementation("org.springframework.ai:spring-ai-starter-vector-store-qdrant")
     implementation("tools.jackson.module:jackson-module-kotlin")
+    implementation("com.github.ben-manes.caffeine:caffeine")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.9.0")
